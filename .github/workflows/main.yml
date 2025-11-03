@@ -102,13 +102,13 @@ jobs:
           cd heimdall
           echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Installing build dependencies..."
           sudo apt-get update
-          sudo apt-get install -y cmake g++ make libedit-dev curl pkg-config
+          sudo apt-get install -y cmake g++ make libedit-dev curl pkg-config libelf-dev
           echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Building Heimdall..."
           mkdir -p build
           cd build
           cmake ..
           make
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Heimdall build complete"
+          chmod +x heimdall-sbom
           echo "HEIMDALL_BIN=$(pwd)/heimdall-sbom" >> $GITHUB_ENV
 
       # -----------------------------
@@ -117,8 +117,14 @@ jobs:
       - name: Generate SBOM (SPDX and CycloneDX)
         run: |
           echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Generating SBOM..."
-          $HEIMDALL_BIN --path project-src --format spdx --output project-src/heimdall-sbom.spdx.json
-          $HEIMDALL_BIN --path project-src --format cyclonedx --output project-src/heimdall-sbom.cyclonedx.json
+          $HEIMDALL_BIN \
+            --path project-src \
+            --format spdx \
+            --output project-src/heimdall-sbom.spdx.json
+          $HEIMDALL_BIN \
+            --path project-src \
+            --format cyclonedx \
+            --output project-src/heimdall-sbom.cyclonedx.json
 
       # -----------------------------
       # VALIDATE SBOM
@@ -126,8 +132,9 @@ jobs:
       - name: Validate SBOM
         run: |
           echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Validating SBOM..."
-          cd heimdall/build
-          ./heimdall-validate --input ../../project-src/heimdall-sbom.cyclonedx.json --output ../../project-src/heimdall-validation.json
+          heimdall-validate \
+            --input project-src/heimdall-sbom.cyclonedx.json \
+            --output project-src/heimdall-validation.json
 
       # -----------------------------
       # UPLOAD SBOM REPORTS
