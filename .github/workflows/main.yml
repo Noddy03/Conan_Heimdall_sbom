@@ -98,10 +98,13 @@ jobs:
       - name: Install Heimdall SBOM Tool
         run: |
           echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Cloning Heimdall..."
-            git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
-          cd heimdall
-          sudo sed -i '/gcc-plugin-dev/d' ./scripts/setup-ubuntu.sh
-          sudo bash ./scripts/setup-ubuntu.sh
+          git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
+            cd heimdall
+          # Remove problematic package if it causes errors
+          sed -i '/gcc-plugin-dev/d' ./scripts/setup-ubuntu.sh
+          # Force bash to avoid 'else' syntax errors
+          bash ./scripts/setup-ubuntu.sh
+
 
 
       # -----------------------------
