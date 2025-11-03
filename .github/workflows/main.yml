@@ -95,10 +95,9 @@ jobs:
             build-essential cmake ninja-build \
             python3 python3-pip \
             llvm-dev clang lld libclang-dev \
-            gcc-plugin-dev \
             libcurl4-openssl-dev libssl-dev \
             pkg-config libelf-dev libedit-dev libbsd-dev zlib1g-dev libxml2-dev libjsoncpp-dev
-
+          
           mkdir -p heimdall/build && cd heimdall/build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
