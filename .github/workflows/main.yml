@@ -95,12 +95,22 @@ jobs:
       # -----------------------------
       # INSTALL HEIMDALL SBOM TOOL
       # -----------------------------
-      - name: Generate SBOM using Heimdall Docker
+      - name: Build Heimdall SBOM Tool
         run: |
-          docker run --rm -v $PWD/project-src:/src ghcr.io/heimdall-sbom/heimdall:latest \
-            --path /src \
-            --format spdx \
-            --output /src/heimdall-sbom.spdx.json
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Cloning Heimdall..."
+          git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
+            cd heimdall
+          # Install minimal build dependencies
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ make
+          # Build Heimdall
+          mkdir -p build
+          cd build
+          cmake ..
+          make
+          # The binary is now available
+          chmod +x heimdall-sbom
+
     
 
 
