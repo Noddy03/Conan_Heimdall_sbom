@@ -99,11 +99,14 @@ jobs:
       # -----------------------------
       - name: Install Heimdall SBOM Tool
         run: |
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Installing Heimdall..."
-           git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
-          cd heimdall
-          GCC_VER=$(gcc -dumpversion | cut -d. -f1)
-          sudo apt-get install -y gcc-${GCC_VER}-plugin-dev
+            VERSION=$(curl -s https://api.github.com/repos/heimdall-sbom/heimdall/releases/latest | jq -r '.tag_name')
+            curl -L "https://github.com/heimdall-sbom/heimdall/releases/download/${VERSION}/heimdall-${VERSION}-linux-amd64.tar.gz" \
+            | tar -xz
+              sudo mv heimdall /usr/local/bin/heimdall
+              sudo chmod +x /usr/local/bin/heimdall
+              echo "/usr/local/bin" >> $GITHUB_PATH
+              heimdall version
+
 
       # -----------------------------
       # GENERATE SBOM USING HEIMDALL
