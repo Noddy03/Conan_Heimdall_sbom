@@ -31,36 +31,25 @@ jobs:
       actions: read
 
     steps:
-      - name: Timestamp
-        run: echo "TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S %Z')" >> $GITHUB_ENV
-
-      # --- Setup environment ---
-      - name: Setup Python 3.10
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20'
-
-      # --- Checkout repositories ---
-      - name: Checkout source repository
+      - name: Checkout source
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.src_repository }}
           ref: ${{ inputs.src_branch }}
           path: project-src
 
-      - name: Checkout Conan repository
+      - name: Checkout Conan repo
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.conan_repository }}
           ref: ${{ inputs.conan_branch }}
           path: conan-src
 
-      # --- Install Conan ---
       - name: Install Conan
         run: |
           sudo apt-get update
@@ -68,21 +57,21 @@ jobs:
           pip install conan
           conan profile detect --force
 
-      # --- Generate Conan lockfile ---
       - name: Generate Conan lockfile
         run: |
           conan lock create conanfile.py --lockfile-out=conan.lock
         working-directory: conan-src
 
-      - name: Copy lockfile to source directory
+      - name: Copy lockfile
         run: cp conan-src/conan.lock project-src/conan.lock
 
-      # --- Build Heimdall ---
-      - name: Build Heimdall SBOM Tool (no plugins)
+      - name: Clone and build Heimdall (disable plugins)
         run: |
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Cloning Heimdall..."
           git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
           cd heimdall
 
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Installing dependencies..."
           sudo apt-get update
           sudo apt-get install -y \
             build-essential cmake ninja-build \
@@ -91,13 +80,16 @@ jobs:
             libcurl4-openssl-dev libssl-dev \
             pkg-config libelf-dev libedit-dev
 
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Configuring build..."
           mkdir -p build && cd build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
-            -DENABLE_LLD_PLUGIN=OFF \
-            -DENABLE_GOLD_PLUGIN=OFF
+            -DHEIMDALL_ENABLE_LLD_PLUGIN=OFF \
+            -DHEIMDALL_ENABLE_GOLD_PLUGIN=OFF \
+            -GNinja
 
-          make -j$(nproc)
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Building Heimdall..."
+          ninja -j$(nproc)
 
           HEIMDALL_BIN_PATH=$(find . -type f -name "heimdall-sbom" | head -n 1)
           if [ -z "$HEIMDALL_BIN_PATH" ]; then
@@ -107,14 +99,12 @@ jobs:
           chmod +x "$HEIMDALL_BIN_PATH"
           echo "HEIMDALL_BIN=$(realpath "$HEIMDALL_BIN_PATH")" >> $GITHUB_ENV
 
-      # --- Generate SBOM ---
       - name: Generate SBOM (SPDX + CycloneDX)
         run: |
           cd project-src
           "$HEIMDALL_BIN" --path . --format spdx-2.3 --output heimdall-sbom.spdx.json
           "$HEIMDALL_BIN" --path . --format cyclonedx-1.5 --output heimdall-sbom.cyclonedx.json
 
-      # --- Validate SBOM ---
       - name: Validate SBOM
         run: |
           cd heimdall/build
@@ -122,7 +112,6 @@ jobs:
             --input ../../project-src/heimdall-sbom.cyclonedx.json \
             --output ../../project-src/heimdall-validation.json
 
-      # --- Upload artifacts ---
       - name: Sanitize artifact name
         id: sanitize
         run: |
