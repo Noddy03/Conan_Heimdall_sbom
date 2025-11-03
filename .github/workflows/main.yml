@@ -94,10 +94,9 @@ jobs:
           sudo apt-get install -y \
             build-essential cmake ninja-build \
             python3 python3-pip \
-            clang-18 llvm-18 lld-18 \
             libcurl4-openssl-dev libssl-dev pkg-config libelf-dev libedit-dev libbsd-dev zlib1g-dev libxml2-dev libjsoncpp-dev \
             gcc-13 g++-13 gcc-13-plugin-dev
-
+          
           mkdir -p heimdall/build
           cd heimdall/build
           cmake .. \
@@ -109,7 +108,7 @@ jobs:
             -DENABLE_GCC_PLUGIN=ON \
             -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations -Wno-unused-variable"
           ninja -j$(nproc)
-
+          
           HEIMDALL_BIN_PATH=$(find . -type f -name "heimdall-sbom" | head -n 1)
           if [ -z "$HEIMDALL_BIN_PATH" ]; then
             echo "❌ heimdall-sbom not found!"
@@ -128,10 +127,9 @@ jobs:
       - name: Validate SBOM
         shell: bash
         run: |
-          cd heimdall/build
-          ./heimdall-validate \
-            --input ../../project-src/heimdall-sbom.cyclonedx.json \
-            --output ../../project-src/heimdall-validation.json
+          "$HEIMDALL_BIN" --validate \
+            --input project-src/heimdall-sbom.cyclonedx.json \
+            --output project-src/heimdall-validation.json
 
       - name: Sanitize artifact name
         id: sanitize
