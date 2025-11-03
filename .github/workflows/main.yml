@@ -18,7 +18,7 @@ on:
         required: false
         default: 'main'
       src_type:
-        description: 'Project Type (java, python, dotnet, cpp, c++)'
+        description: 'Project Type (java, python, dotnet, c++, c++)'
         required: false
         default: 'c++'
 
@@ -72,14 +72,15 @@ jobs:
       - name: Copy lockfile to source
         run: cp conan-src/conan.lock project-src/conan.lock
 
-      - name: Clone Heimdall and patch
+      - name: Clone Heimdall
         run: |
           git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
           cd heimdall
-          # Disable problematic plugins
-          sed -i '/add_subdirectory(.*lld.*)/ s/^/#/' CMakeLists.txt || true
-          sed -i '/add_subdirectory(.*gold.*)/ s/^/#/' CMakeLists.txt || true
-          rm -rf src/lld src/gold || true
+
+      - name: Verify LLD and Gold files exist
+        run: |
+          ls -l heimdall/lld/ || echo "LLD folder missing"
+          ls -l heimdall/gold/ || echo "Gold folder missing"
 
       - name: Cache Heimdall build
         uses: actions/cache@v3
@@ -87,10 +88,9 @@ jobs:
           path: heimdall/build
           key: heimdall-${{ hashFiles('heimdall/**') }}
 
-      - name: Build Heimdall
+      - name: Build Heimdall with LLD & Gold
         run: |
           set -e
-          cd heimdall
           sudo apt-get update
           sudo apt-get install -y \
             build-essential cmake ninja-build \
@@ -98,9 +98,21 @@ jobs:
             llvm-dev clang lld libclang-dev \
             libcurl4-openssl-dev libssl-dev \
             pkg-config libelf-dev libedit-dev libbsd-dev zlib1g-dev libxml2-dev libjsoncpp-dev
-          mkdir -p build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release -GNinja -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations"
+          
+          mkdir -p heimdall/build && cd heimdall/build
+
+          # Configure CMake with plugins enabled
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -GNinja \
+            -DBUILD_LLVM_PLUGIN=ON \
+            -DBUILD_LLD_PLUGIN=ON \
+            -DBUILD_GOLD_PLUGIN=ON \
+            -DENABLE_TESTS=ON \
+            -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations"
+
           ninja -j$(nproc)
+
           HEIMDALL_BIN_PATH=$(find . -type f -name "heimdall-sbom" | head -n 1)
           if [ -z "$HEIMDALL_BIN_PATH" ]; then
             echo "❌ heimdall-sbom not found!"
