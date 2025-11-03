@@ -74,13 +74,13 @@ jobs:
         shell: bash
         run: cp conan-src/conan.lock project-src/conan.lock
 
-      - name: Download Heimdall Binary
+      - name: Download Heimdall binary
         shell: bash
         run: |
-          HEIMDALL_VERSION="v0.2.0"  # use the latest stable release
-          wget https://github.com/Heimdall-SBOM/heimdall/releases/download/${HEIMDALL_VERSION}/heimdall-linux-amd64 -O heimdall
-          chmod +x heimdall
-          echo "HEIMDALL_BIN=$(pwd)/heimdall" >> $GITHUB_ENV
+          HEIMDALL_VERSION="v0.2.0"  # adjust to latest stable release after verification
+          curl -L -o heimdall-linux-amd64 "https://github.com/Heimdall-SBOM/heimdall/releases/download/${HEIMDALL_VERSION}/heimdall-linux-amd64"
+          chmod +x heimdall-linux-amd64
+          echo "HEIMDALL_BIN=$(pwd)/heimdall-linux-amd64" >> $GITHUB_ENV
 
       - name: Validate SBOM
         shell: bash
@@ -111,3 +111,4 @@ jobs:
             project-src/heimdall-sbom.cyclonedx.json
             project-src/heimdall-validation.json
           if-no-files-found: warn
+
