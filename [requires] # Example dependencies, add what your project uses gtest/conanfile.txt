@@ -1,0 +1,10 @@
+[requires]
+# Example dependencies, add what your project uses
+gtest/1.14.0
+
+[generators]
+cmake
+cmake_find_package
+
+[options]
+# Optional, depends on the library
