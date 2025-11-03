@@ -51,10 +51,11 @@ jobs:
           path: conan-src
 
       - name: Install Conan
+        shell: bash
         run: |
           set -e
           sudo apt-get update
-          python -m pip install --upgrade pip setuptools wheel
+          python3 -m pip install --upgrade pip setuptools wheel
           pip install conan
           conan profile detect --force
 
@@ -67,15 +68,16 @@ jobs:
             conan-${{ inputs.conan_repository }}-${{ inputs.conan_branch }}-
 
       - name: Generate Conan lockfile
+        shell: bash
         run: conan lock create conanfile.py --lockfile-out=conan.lock
         working-directory: conan-src
 
       - name: Copy lockfile to source
-        run: |
-          mkdir -p project-src
-          cp conan-src/conan.lock project-src/conan.lock
+        shell: bash
+        run: cp conan-src/conan.lock project-src/conan.lock
 
       - name: Clone Heimdall
+        shell: bash
         run: git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
 
       - name: Log Heimdall folder info
@@ -88,6 +90,7 @@ jobs:
           key: heimdall-${{ runner.os }}-${{ hashFiles('heimdall/CMakeLists.txt') }}
 
       - name: Build Heimdall with LLD & Gold
+        shell: bash
         run: |
           set -e
           sudo apt-get update
@@ -120,12 +123,14 @@ jobs:
           echo "HEIMDALL_BIN=$(realpath "$HEIMDALL_BIN_PATH")" >> $GITHUB_ENV
 
       - name: Generate SBOM (SPDX + CycloneDX)
+        shell: bash
         run: |
           cd project-src
           "$HEIMDALL_BIN" --path . --format spdx-2.3 --output heimdall-sbom.spdx.json || echo "SPDX generation failed"
           "$HEIMDALL_BIN" --path . --format cyclonedx-1.5 --output heimdall-sbom.cyclonedx.json || echo "CycloneDX generation failed"
 
       - name: Validate SBOM
+        shell: bash
         run: |
           cd heimdall/build
           ./heimdall-validate \
@@ -134,6 +139,7 @@ jobs:
 
       - name: Sanitize artifact name
         id: sanitize
+        shell: bash
         run: |
           SAFE_NAME="${{ inputs.src_repository }}"
           SAFE_NAME="${SAFE_NAME//\//_}"
