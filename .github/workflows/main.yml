@@ -96,18 +96,22 @@ jobs:
             python3 python3-pip \
             libcurl4-openssl-dev libssl-dev pkg-config libelf-dev libedit-dev libbsd-dev zlib1g-dev libxml2-dev libjsoncpp-dev \
             gcc-13 g++-13 gcc-13-plugin-dev
-          
+
+          # Force-disable LLD plugin before configuring
+          sed -i 's/set(BUILD_LLD_PLUGIN ON)/set(BUILD_LLD_PLUGIN OFF)/' heimdall/CMakeLists.txt || true
+
           mkdir -p heimdall/build
           cd heimdall/build
+
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
             -GNinja \
-            -DENABLE_LLD_PLUGIN=OFF \
-            -DENABLE_GOLD_PLUGIN=ON \
-            -DENABLE_GCC_PLUGIN=ON \
+            -DBUILD_GOLD_PLUGIN=ON \
+            -DBUILD_GCC_PLUGIN=ON \
             -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations -Wno-unused-variable"
+
           ninja -j$(nproc)
-          
+
           HEIMDALL_BIN_PATH=$(find . -type f -name "heimdall-sbom" | head -n 1)
           if [ -z "$HEIMDALL_BIN_PATH" ]; then
             echo "❌ heimdall-sbom not found!"
