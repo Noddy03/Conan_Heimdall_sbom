@@ -5,7 +5,7 @@ namespace heimdall {
 namespace gold {
 
 GoldAdapter::GoldAdapter() {
-    std::cout << "GoldAdapter initialized\n";
+    std::cout << "GoldAdapter initialized\n"; 
 }
 
 void GoldAdapter::doSomething() {
