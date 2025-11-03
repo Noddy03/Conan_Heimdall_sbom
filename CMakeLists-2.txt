@@ -1,29 +1,66 @@
 cmake_minimum_required(VERSION 3.15)
-project(hello_world VERSION 1.0.0 LANGUAGES CXX)
+project(heimdall VERSION 1.0.0 LANGUAGES CXX)
 
-# Enable testing if option enabled
-include(CTest)
+# -------------------------
+# Options
+# -------------------------
+option(ENABLE_TESTING "Enable building tests" ON)
 
-# Set C++ standard
+# -------------------------
+# C++ Standard
+# -------------------------
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Use Conan dependencies
+# -------------------------
+# Conan
+# -------------------------
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup()
 
-# Add main library
-add_library(hello_world src/hello_world.cpp include/hello_world.h)
+# -------------------------
+# Find LLVM
+# -------------------------
+find_package(LLVM REQUIRED CONFIG)
 
-target_include_directories(hello_world PUBLIC include)
+message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+message(STATUS "LLVM include dirs: ${LLVM_INCLUDE_DIRS}")
+message(STATUS "LLVM libraries: ${LLVM_LIBRARIES}")
 
-# Link libraries from Conan
-target_link_libraries(hello_world ${CONAN_LIBS})
+# Include LLVM headers
+include_directories(${LLVM_INCLUDE_DIRS})
+add_definitions(${LLVM_DEFINITIONS})
 
-# Add test executable if testing enabled
+# -------------------------
+# Include LLD
+# -------------------------
+# LLD headers are usually part of LLVM
+include_directories(${LLVM_INCLUDE_DIRS})
+
+# Optional: link LLD explicitly if needed
+set(LLD_LIB lld)
+
+# -------------------------
+# Add Heimdall Library
+# -------------------------
+add_library(heimdall
+    src/heimdall.cpp
+    include/heimdall.h
+)
+
+target_include_directories(heimdall PUBLIC include)
+target_link_libraries(heimdall
+    ${CONAN_LIBS}
+    ${LLVM_LIBRARIES}
+    ${LLD_LIB}
+)
+
+# -------------------------
+# Tests
+# -------------------------
 if(ENABLE_TESTING)
     enable_testing()
-    add_executable(hello_world_unit tests/hello_world_unit.cpp)
-    target_link_libraries(hello_world_unit hello_world ${CONAN_LIBS} gtest_main)
-    add_test(NAME hello_world_test COMMAND hello_world_unit)
+    add_executable(heimdall_test tests/heimdall_test.cpp)
+    target_link_libraries(heimdall_test heimdall ${CONAN_LIBS} gtest_main)
+    add_test(NAME heimdall_test COMMAND heimdall_test)
 endif()
