@@ -1,107 +1,49 @@
-name: Heimdall SBOM Scan
+name: Conan + Heimdall Full SBOM Scan
 
 on:
   workflow_dispatch:
     inputs:
-      target_repository:
-        description: 'Target repository to generate SBOM for (e.g., user/project)'
+      src_repository:
+        description: 'Source Repository (e.g., user/repo)'
         required: true
-      target_branch:
-        description: 'Branch in target repository'
+      src_branch:
+        description: 'Branch of source repository'
         required: false
         default: 'main'
+      conan_repository:
+        description: 'Repository containing conanfile.py'
+        required: true
+      conan_branch:
+        description: 'Branch for Conan repository'
+        required: false
+        default: 'main'
+      src_type:
+        description: 'Project Type (java, python, dotnet, cpp, c++)'
+        required: false
+        default: 'cpp'
 
 jobs:
-  sbom:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
 
     steps:
       # -----------------------------
+      # TIMESTAMP FUNCTION
+      # -----------------------------
+      - name: Define timestamp function
+        id: timestamp
+        run: |
+          echo "TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S %Z')" >> $GITHUB_ENV
+          echo "Timestamp initialized at $TIMESTAMP"
+
+      # -----------------------------
       # SETUP ENVIRONMENT
       # -----------------------------
-      - name: Setup environment
-        run: |
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Setting up environment..."
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential cmake ninja-build git python3 python3-pip \
-            libssl-dev libelf-dev pkg-config libboost-filesystem-dev \
-            libboost-system-dev curl jq
-
-      # -----------------------------
-      # CLONE & BUILD HEIMDALL
-      # -----------------------------
-      - name: Clone and build Heimdall
-        run: |
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Cloning Heimdall..."
-          git clone https://github.com/Heimdall-SBOM/heimdall.git
-          cd heimdall
-
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Running setup script..."
-          sudo ./scripts/setup-ubuntu.sh --auto-detect || true
-
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Building Heimdall..."
-          ./scripts/build.sh --standard 17 --compiler gcc --tests
-
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Installing Heimdall..."
-          sudo mv build/bin/heimdall-sbom /usr/local/bin/heimdall-sbom
-          sudo mv build/bin/heimdall-validate /usr/local/bin/heimdall-validate
-          sudo chmod +x /usr/local/bin/heimdall-sbom /usr/local/bin/heimdall-validate
-          echo "/usr/local/bin" >> $GITHUB_PATH
-
-          heimdall-sbom --version || echo "Heimdall SBOM tool ready."
-          heimdall-validate --version || echo "Heimdall Validate tool ready."
-
-      # -----------------------------
-      # CHECKOUT TARGET REPOSITORY
-      # -----------------------------
-      - name: Checkout target repository
-        uses: actions/checkout@v4
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v4
         with:
-          repository: ${{ inputs.target_repository }}
-          ref: ${{ inputs.target_branch }}
-          path: target-src
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      # -----------------------------
-      # GENERATE SBOM
-      # -----------------------------
-      - name: Generate SBOMs for target repo
-        run: |
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Generating SBOMs for ${{ inputs.target_repository }}..."
-          heimdall-sbom \
-            --path target-src \
-            --format spdx \
-            --output target-src/heimdall-sbom.spdx.json
-
-          heimdall-sbom \
-            --path target-src \
-            --format cyclonedx \
-            --output target-src/heimdall-sbom.cyclonedx.json
-
-      # -----------------------------
-      # VALIDATE SBOM
-      # -----------------------------
-      - name: Validate SBOMs
-        run: |
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Validating SBOMs..."
-          heimdall-validate \
-            --input target-src/heimdall-sbom.spdx.json \
-            --output target-src/validation-spdx.json
-
-          heimdall-validate \
-            --input target-src/heimdall-sbom.cyclonedx.json \
-            --output target-src/validation-cyclonedx.json
-
-      # -----------------------------
-      # UPLOAD RESULTS
-      # -----------------------------
-      - name: Upload SBOM artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: heimdall-sboms-${{ inputs.target_repository }}
-          path: |
-            target-src/heimdall-sbom.spdx.json
-            target-src/heimdall-sbom.cyclonedx.json
-            target-src/validation-spdx.json
-            target-src/validation-cyclonedx.json
+          python-versio
