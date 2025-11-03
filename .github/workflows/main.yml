@@ -75,7 +75,6 @@ jobs:
       - name: Clone Heimdall
         run: |
           git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
-          cd heimdall
 
       - name: Verify LLD and Gold files exist
         run: |
@@ -96,12 +95,11 @@ jobs:
             build-essential cmake ninja-build \
             python3 python3-pip \
             llvm-dev clang lld libclang-dev \
+            gcc-plugin-dev \
             libcurl4-openssl-dev libssl-dev \
             pkg-config libelf-dev libedit-dev libbsd-dev zlib1g-dev libxml2-dev libjsoncpp-dev
-          
-          mkdir -p heimdall/build && cd heimdall/build
 
-          # Configure CMake with plugins enabled
+          mkdir -p heimdall/build && cd heimdall/build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
             -GNinja \
@@ -110,9 +108,7 @@ jobs:
             -DBUILD_GOLD_PLUGIN=ON \
             -DENABLE_TESTS=ON \
             -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations"
-
           ninja -j$(nproc)
-
           HEIMDALL_BIN_PATH=$(find . -type f -name "heimdall-sbom" | head -n 1)
           if [ -z "$HEIMDALL_BIN_PATH" ]; then
             echo "❌ heimdall-sbom not found!"
