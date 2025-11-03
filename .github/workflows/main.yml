@@ -18,7 +18,7 @@ on:
         required: false
         default: 'main'
       src_type:
-        description: 'Project Type (java, python, dotnet, c++, c++)'
+        description: 'Project Type (java, python, dotnet, c++)'
         required: false
         default: 'c++'
 
@@ -52,8 +52,9 @@ jobs:
 
       - name: Install Conan
         run: |
+          set -e
           sudo apt-get update
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip setuptools wheel
           pip install conan
           conan profile detect --force
 
@@ -61,7 +62,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.conan/data
-          key: conan-${{ inputs.conan_repository }}-${{ inputs.conan_branch }}-${{ hashFiles('conan-src/conanfile.py') }}
+          key: conan-${{ inputs.conan_repository }}-${{ inputs.conan_branch }}-${{ hashFiles('conan-src/**/conanfile.py') }}
           restore-keys: |
             conan-${{ inputs.conan_repository }}-${{ inputs.conan_branch }}-
 
@@ -70,21 +71,21 @@ jobs:
         working-directory: conan-src
 
       - name: Copy lockfile to source
-        run: cp conan-src/conan.lock project-src/conan.lock
+        run: |
+          mkdir -p project-src
+          cp conan-src/conan.lock project-src/conan.lock
 
       - name: Clone Heimdall
-        run: |
-          git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
+        run: git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
 
       - name: Log Heimdall folder info
-        run: |
-          echo "Skipping LLD/Gold folder check; these are generated during build."
+        run: echo "Skipping LLD/Gold folder check; these are generated during build."
 
       - name: Cache Heimdall build
         uses: actions/cache@v3
         with:
           path: heimdall/build
-          key: heimdall-${{ hashFiles('heimdall/**') }}
+          key: heimdall-${{ runner.os }}-${{ hashFiles('heimdall/CMakeLists.txt') }}
 
       - name: Build Heimdall with LLD & Gold
         run: |
@@ -96,8 +97,9 @@ jobs:
             llvm-dev clang lld libclang-dev \
             libcurl4-openssl-dev libssl-dev \
             pkg-config libelf-dev libedit-dev libbsd-dev zlib1g-dev libxml2-dev libjsoncpp-dev
-          
-          mkdir -p heimdall/build && cd heimdall/build
+
+          mkdir -p heimdall/build
+          cd heimdall/build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
             -GNinja \
@@ -107,6 +109,7 @@ jobs:
             -DENABLE_TESTS=ON \
             -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations"
           ninja -j$(nproc)
+
           HEIMDALL_BIN_PATH=$(find . -type f -name "heimdall-sbom" | head -n 1)
           if [ -z "$HEIMDALL_BIN_PATH" ]; then
             echo "❌ heimdall-sbom not found!"
