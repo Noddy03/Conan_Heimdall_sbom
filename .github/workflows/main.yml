@@ -1,19 +1,25 @@
-name: Generate SBOM with Heimdall
+name: Heimdall SBOM Scan
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
+  workflow_dispatch:
+    inputs:
+      target_repository:
+        description: 'Target repository to generate SBOM for (e.g., user/project)'
+        required: true
+      target_branch:
+        description: 'Branch in target repository'
+        required: false
+        default: 'main'
 
 jobs:
   sbom:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
-
-      - name: Set up environment
+      # -----------------------------
+      # SETUP ENVIRONMENT
+      # -----------------------------
+      - name: Setup environment
         run: |
           echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Setting up environment..."
           sudo apt-get update
@@ -22,6 +28,9 @@ jobs:
             libssl-dev libelf-dev pkg-config libboost-filesystem-dev \
             libboost-system-dev curl jq
 
+      # -----------------------------
+      # CLONE & BUILD HEIMDALL
+      # -----------------------------
       - name: Clone and build Heimdall
         run: |
           echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Cloning Heimdall..."
@@ -43,37 +52,56 @@ jobs:
           heimdall-sbom --version || echo "Heimdall SBOM tool ready."
           heimdall-validate --version || echo "Heimdall Validate tool ready."
 
-      - name: Generate SBOMs
+      # -----------------------------
+      # CHECKOUT TARGET REPOSITORY
+      # -----------------------------
+      - name: Checkout target repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.target_repository }}
+          ref: ${{ inputs.target_branch }}
+          path: target-src
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # -----------------------------
+      # GENERATE SBOM
+      # -----------------------------
+      - name: Generate SBOMs for target repo
         run: |
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Generating SBOMs..."
-          mkdir -p project-src
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Generating SBOMs for ${{ inputs.target_repository }}..."
           heimdall-sbom \
-            --path project-src \
+            --path target-src \
             --format spdx \
-            --output project-src/heimdall-sbom.spdx.json
+            --output target-src/heimdall-sbom.spdx.json
 
           heimdall-sbom \
-            --path project-src \
+            --path target-src \
             --format cyclonedx \
-            --output project-src/heimdall-sbom.cyclonedx.json
+            --output target-src/heimdall-sbom.cyclonedx.json
 
+      # -----------------------------
+      # VALIDATE SBOM
+      # -----------------------------
       - name: Validate SBOMs
         run: |
           echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Validating SBOMs..."
           heimdall-validate \
-            --input project-src/heimdall-sbom.spdx.json \
-            --output project-src/validation-spdx.json
+            --input target-src/heimdall-sbom.spdx.json \
+            --output target-src/validation-spdx.json
 
           heimdall-validate \
-            --input project-src/heimdall-sbom.cyclonedx.json \
-            --output project-src/validation-cyclonedx.json
+            --input target-src/heimdall-sbom.cyclonedx.json \
+            --output target-src/validation-cyclonedx.json
 
+      # -----------------------------
+      # UPLOAD RESULTS
+      # -----------------------------
       - name: Upload SBOM artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: heimdall-sboms
+          name: heimdall-sboms-${{ inputs.target_repository }}
           path: |
-            project-src/heimdall-sbom.spdx.json
-            project-src/heimdall-sbom.cyclonedx.json
-            project-src/validation-spdx.json
-            project-src/validation-cyclonedx.json
+            target-src/heimdall-sbom.spdx.json
+            target-src/heimdall-sbom.cyclonedx.json
+            target-src/validation-spdx.json
+            target-src/validation-cyclonedx.json
