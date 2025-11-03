@@ -74,6 +74,7 @@ jobs:
         shell: bash
         run: cp conan-src/conan.lock project-src/conan.lock
 
+      # ---------------- Heimdall Steps ----------------
       - name: Clone Heimdall repository
         shell: bash
         run: git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
@@ -86,10 +87,9 @@ jobs:
           restore-keys: |
             heimdall-${{ runner.os }}-
 
-      - name: Build Heimdall (LLD disabled)
+      - name: Install Heimdall dependencies
         shell: bash
         run: |
-          set -e
           sudo apt-get update -y
           sudo apt-get install -y \
             build-essential cmake ninja-build \
@@ -98,13 +98,13 @@ jobs:
             libelf-dev libedit-dev libbsd-dev zlib1g-dev \
             libxml2-dev libjsoncpp-dev gcc-13 g++-13 gcc-13-plugin-dev
 
-          # Ensure clean build and disable LLD plugin
+      - name: Build Heimdall
+        shell: bash
+        run: |
+          set -e
           rm -rf heimdall/build
-          rm -rf heimdall/src/lld heimdall/lld
-
           mkdir -p heimdall/build
           cd heimdall/build
-
           cmake ../src \
             -DCMAKE_BUILD_TYPE=Release \
             -GNinja \
@@ -115,16 +115,16 @@ jobs:
             -DCMAKE_C_COMPILER=gcc-13 \
             -DCMAKE_CXX_COMPILER=g++-13 \
             -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations -Wno-unused-variable"
-
           ninja -j$(nproc)
-
-          # Export Heimdall binary path for later steps
-          echo "HEIMDALL_BIN=$(realpath heimdall)" >> $GITHUB_ENV
+          HEIMDALL_BIN="$(pwd)/heimdall"
+          echo "HEIMDALL_BIN=$HEIMDALL_BIN" >> $GITHUB_ENV
+          chmod +x "$HEIMDALL_BIN"
 
       - name: Validate SBOM
         shell: bash
         run: |
           if [ -f "$HEIMDALL_BIN" ]; then
+            echo "✅ Using Heimdall binary at $HEIMDALL_BIN"
             "$HEIMDALL_BIN" --validate \
               --input project-src/heimdall-sbom.cyclonedx.json \
               --output project-src/heimdall-validation.json
@@ -133,6 +133,7 @@ jobs:
             exit 1
           fi
 
+      # ---------------- Upload Artifacts ----------------
       - name: Sanitize artifact name
         id: sanitize
         shell: bash
