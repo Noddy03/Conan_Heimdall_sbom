@@ -1,68 +1,43 @@
-# Minimum CMake version and project definition
+# Minimum required version of CMake
 cmake_minimum_required(VERSION 3.28)
+
+# Project name and languages
 project(HeimdallSBOM LANGUAGES C CXX)
 
-# Set C++ standard and enforce it
+# Optional: set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Optional: Enable warnings for all compilers
-if(MSVC)
-    add_compile_options(/W4 /permissive-)
-else()
-    add_compile_options(-Wall -Wextra -Wpedantic -Wshadow -Wnon-virtual-dtor -Wconversion)
-endif()
+# Include directories (adjust according to your project)
+include_directories(${CMAKE_SOURCE_DIR}/include)
 
-# Build type default
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
-endif()
-
-# Include directories
-include_directories(
-    ${PROJECT_SOURCE_DIR}/include
-)
-
-# Source files
-file(GLOB_RECURSE SRC_FILES
-    ${PROJECT_SOURCE_DIR}/src/*.cpp
-)
-
-# Add executable
-add_executable(heimdall ${SRC_FILES})
-
-# Link OpenSSL
+# Find packages
 find_package(OpenSSL REQUIRED)
-if(OpenSSL_FOUND)
-    target_include_directories(heimdall PRIVATE ${OPENSSL_INCLUDE_DIR})
-    target_link_libraries(heimdall PRIVATE OpenSSL::Crypto)
-endif()
 
-# Optional: Add libraries if needed
-# target_link_libraries(heimdall PRIVATE <other-libraries>)
+# Recursively collect all .cpp files in src/lld and src/gold
+file(GLOB_RECURSE LLD_SOURCES ${CMAKE_SOURCE_DIR}/src/lld/*.cpp)
+file(GLOB_RECURSE GOLD_SOURCES ${CMAKE_SOURCE_DIR}/src/gold/*.cpp)
+set(SOURCES ${LLD_SOURCES} ${GOLD_SOURCES})
 
-# Lightweight DWARF parser options
-# (adjust include path if needed)
-target_include_directories(heimdall PRIVATE ${PROJECT_SOURCE_DIR}/lib/LightweightDWARFParser/include)
+# Create executable target
+add_executable(heimdall ${SOURCES})
 
-# Compiler-specific options
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(heimdall PRIVATE -fno-exceptions -fno-rtti)
-endif()
+# Link libraries
+target_link_libraries(heimdall PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 
-# Set target properties safely
+# Set target properties
 set_target_properties(heimdall PROPERTIES
     OUTPUT_NAME "heimdall"
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
-# Installation rules (optional)
+# Optional: compile options
+target_compile_options(heimdall PRIVATE
+    -Wall -Wextra -Wpedantic
+)
+
+# Optional: install rules
 install(TARGETS heimdall
     RUNTIME DESTINATION bin
 )
-
-# Enable Ninja generator if available
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-message(STATUS "Configuration complete. C++ Standard: ${CMAKE_CXX_STANDARD}, Build type: ${CMAKE_BUILD_TYPE}")
-
