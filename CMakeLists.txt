@@ -21,16 +21,29 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# Option to enable GCC plugin
+option(ENABLE_GCC_PLUGIN "Build Heimdall with GCC plugin support" OFF)
+
 # Include directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-# Collect source files
+# Base source files
 set(SOURCES
     src/main.cpp
     lld/LLDAdapter.cpp
     gold/GoldAdapter.cpp
     # Add other source files here
 )
+
+# Conditionally include GCC plugin files
+if(ENABLE_GCC_PLUGIN)
+    message(STATUS "GCC plugin support enabled")
+    list(APPEND SOURCES
+        gcc_plugin/MyGccPlugin.cpp
+        # Add other plugin source files here
+    )
+    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/gcc_plugin/include)
+endif()
 
 # Add executable
 add_executable(heimdall ${SOURCES})
