@@ -20,7 +20,7 @@ on:
       src_type:
         description: 'Project Type (java, python, dotnet, cpp, c++)'
         required: false
-        default: 'cpp'
+        default: 'c++'
 
 jobs:
   build:
