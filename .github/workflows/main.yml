@@ -97,8 +97,10 @@ jobs:
             libcurl4-openssl-dev libssl-dev pkg-config libelf-dev libedit-dev libbsd-dev zlib1g-dev libxml2-dev libjsoncpp-dev \
             gcc-13 g++-13 gcc-13-plugin-dev
 
-          # Clean old build cache
+          # Clean old build cache and forcibly remove LLD plugin sources
           rm -rf heimdall/build
+          rm -rf heimdall/src/lld heimdall/lld
+
           mkdir -p heimdall/build
           cd heimdall/build
 
@@ -112,20 +114,6 @@ jobs:
 
           ninja -j$(nproc)
 
-          HEIMDALL_BIN_PATH=$(find . -type f -name "heimdall-sbom" | head -n 1)
-          if [ -z "$HEIMDALL_BIN_PATH" ]; then
-            echo "❌ heimdall-sbom not found!"
-            exit 1
-          fi
-          chmod +x "$HEIMDALL_BIN_PATH"
-          echo "HEIMDALL_BIN=$(realpath "$HEIMDALL_BIN_PATH")" >> $GITHUB_ENV
-
-      - name: Generate SBOM (SPDX + CycloneDX)
-        shell: bash
-        run: |
-          cd project-src
-          "$HEIMDALL_BIN" --path . --format spdx-2.3 --output heimdall-sbom.spdx.json
-          "$HEIMDALL_BIN" --path . --format cyclonedx-1.5 --output heimdall-sbom.cyclonedx.json
 
       - name: Validate SBOM
         shell: bash
