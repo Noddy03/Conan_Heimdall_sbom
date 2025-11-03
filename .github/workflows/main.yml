@@ -98,18 +98,11 @@ jobs:
       - name: Install Heimdall SBOM Tool
         run: |
           echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Cloning Heimdall..."
-          git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
+            git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
           cd heimdall
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Running setup..."
+          sudo sed -i '/gcc-plugin-dev/d' ./scripts/setup-ubuntu.sh
           sudo ./scripts/setup-ubuntu.sh
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Building Heimdall..."
-          ./scripts/build.sh --standard 17 --compiler gcc --tests
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Installing binaries..."
-          sudo mv build/bin/heimdall-sbom /usr/local/bin/heimdall-sbom
-          sudo mv build/bin/heimdall-validate /usr/local/bin/heimdall-validate
-          sudo chmod +x /usr/local/bin/heimdall-sbom /usr/local/bin/heimdall-validate
-          heimdall-sbom --version
-          heimdall-validate --version
+
 
       # -----------------------------
       # GENERATE SBOM USING HEIMDALL
