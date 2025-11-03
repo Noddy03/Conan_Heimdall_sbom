@@ -102,9 +102,8 @@ jobs:
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
             -GNinja \
-            -DBUILD_LLVM_PLUGIN=OFF \
-            -DBUILD_LLD_PLUGIN=OFF \
-            -DBUILD_GOLD_PLUGIN=ON \
+            -DENABLE_LLD_PLUGIN=OFF \
+            -DENABLE_GOLD_PLUGIN=ON \
             -DENABLE_GCC_PLUGIN=ON \
             -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations -Wno-unused-variable"
           ninja -j$(nproc)
