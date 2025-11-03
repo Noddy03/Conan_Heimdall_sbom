@@ -86,7 +86,7 @@ jobs:
           restore-keys: |
             heimdall-${{ runner.os }}-
 
-      - name: Build Heimdall (GCC + Gold, LLD disabled)
+      - name: Build Heimdall (LLD disabled)
         shell: bash
         run: |
           set -e
@@ -97,9 +97,8 @@ jobs:
             libcurl4-openssl-dev libssl-dev pkg-config libelf-dev libedit-dev libbsd-dev zlib1g-dev libxml2-dev libjsoncpp-dev \
             gcc-13 g++-13 gcc-13-plugin-dev
 
-          # Force-disable LLD plugin before configuring
-          sed -i 's/set(BUILD_LLD_PLUGIN ON)/set(BUILD_LLD_PLUGIN OFF)/' heimdall/CMakeLists.txt || true
-
+          # Clean old build cache
+          rm -rf heimdall/build
           mkdir -p heimdall/build
           cd heimdall/build
 
@@ -108,6 +107,7 @@ jobs:
             -GNinja \
             -DBUILD_GOLD_PLUGIN=ON \
             -DBUILD_GCC_PLUGIN=ON \
+            -DBUILD_LLD_PLUGIN=OFF \
             -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations -Wno-unused-variable"
 
           ninja -j$(nproc)
