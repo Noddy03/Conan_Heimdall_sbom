@@ -65,12 +65,20 @@ jobs:
       - name: Copy lockfile
         run: cp conan-src/conan.lock project-src/conan.lock
 
-      - name: Clone and build Heimdall (disable plugins)
+      - name: Clone and patch Heimdall (disable plugins)
         run: |
           echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Cloning Heimdall..."
           git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
           cd heimdall
 
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Disabling LLD and GOLD plugins..."
+          # Comment out plugin directories in the main CMakeLists.txt
+          sed -i '/add_subdirectory(.*lld.*)/ s/^/#/' CMakeLists.txt || true
+          sed -i '/add_subdirectory(.*gold.*)/ s/^/#/' CMakeLists.txt || true
+
+      - name: Build Heimdall
+        run: |
+          cd heimdall
           echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Installing dependencies..."
           sudo apt-get update
           sudo apt-get install -y \
@@ -84,8 +92,6 @@ jobs:
           mkdir -p build && cd build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
-            -DHEIMDALL_ENABLE_LLD_PLUGIN=OFF \
-            -DHEIMDALL_ENABLE_GOLD_PLUGIN=OFF \
             -GNinja
 
           echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Building Heimdall..."
