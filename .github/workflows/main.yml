@@ -24,7 +24,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       security-events: write
@@ -32,9 +32,9 @@ jobs:
 
     steps:
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.12'
 
       - name: Checkout source repository
         uses: actions/checkout@v4
@@ -60,10 +60,10 @@ jobs:
       - name: Cache Conan packages
         uses: actions/cache@v3
         with:
-          path: ~/.conan/data
-          key: conan-${{ inputs.conan_repository }}-${{ inputs.conan_branch }}-${{ hashFiles('conan-src/**/conanfile.py') }}
+          path: ~/.conan2/p
+          key: conan-${{ runner.os }}-${{ inputs.conan_repository }}-${{ hashFiles('conan-src/**/conanfile.py') }}
           restore-keys: |
-            conan-${{ inputs.conan_repository }}-${{ inputs.conan_branch }}-
+            conan-${{ runner.os }}-${{ inputs.conan_repository }}-
 
       - name: Generate Conan lockfile
         shell: bash
@@ -82,7 +82,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: heimdall/build
-          key: heimdall-${{ runner.os }}-${{ hashFiles('heimdall/CMakeLists.txt', 'heimdall/**/*.cpp', 'heimdall/**/*.h') }}
+          key: heimdall-${{ runner.os }}-${{ hashFiles('heimdall/src/CMakeLists.txt', 'heimdall/**/*.cpp', 'heimdall/**/*.h') }}
           restore-keys: |
             heimdall-${{ runner.os }}-
 
@@ -90,37 +90,48 @@ jobs:
         shell: bash
         run: |
           set -e
-          sudo apt-get update
+          sudo apt-get update -y
           sudo apt-get install -y \
             build-essential cmake ninja-build \
             python3 python3-pip \
-            libcurl4-openssl-dev libssl-dev pkg-config libelf-dev libedit-dev libbsd-dev zlib1g-dev libxml2-dev libjsoncpp-dev \
-            gcc-13 g++-13 gcc-13-plugin-dev
+            libcurl4-openssl-dev libssl-dev pkg-config \
+            libelf-dev libedit-dev libbsd-dev zlib1g-dev \
+            libxml2-dev libjsoncpp-dev gcc-13 g++-13 gcc-13-plugin-dev
 
-          # Clean old build cache and forcibly remove LLD plugin sources
+          # Ensure clean build and disable LLD plugin
           rm -rf heimdall/build
           rm -rf heimdall/src/lld heimdall/lld
 
           mkdir -p heimdall/build
           cd heimdall/build
 
-          cmake .. \
+          cmake ../src \
             -DCMAKE_BUILD_TYPE=Release \
             -GNinja \
             -DBUILD_GOLD_PLUGIN=ON \
             -DBUILD_GCC_PLUGIN=ON \
             -DBUILD_LLD_PLUGIN=OFF \
+            -DHEIMDALL_ENABLE_TESTS=ON \
+            -DCMAKE_C_COMPILER=gcc-13 \
+            -DCMAKE_CXX_COMPILER=g++-13 \
             -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations -Wno-unused-variable"
 
           ninja -j$(nproc)
 
+          # Export Heimdall binary path for later steps
+          echo "HEIMDALL_BIN=$(realpath heimdall)" >> $GITHUB_ENV
 
       - name: Validate SBOM
         shell: bash
         run: |
-          "$HEIMDALL_BIN" --validate \
-            --input project-src/heimdall-sbom.cyclonedx.json \
-            --output project-src/heimdall-validation.json
+          if [ -f "$HEIMDALL_BIN" ]; then
+            "$HEIMDALL_BIN" --validate \
+              --input project-src/heimdall-sbom.cyclonedx.json \
+              --output project-src/heimdall-validation.json
+          else
+            echo "❌ Heimdall binary not found at $HEIMDALL_BIN"
+            exit 1
+          fi
 
       - name: Sanitize artifact name
         id: sanitize
