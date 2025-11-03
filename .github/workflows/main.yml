@@ -52,7 +52,6 @@ jobs:
 
       - name: Install Conan
         run: |
-          set -e
           sudo apt-get update
           python -m pip install --upgrade pip
           pip install conan
@@ -67,13 +66,13 @@ jobs:
 
       - name: Clone and patch Heimdall (disable plugins)
         run: |
-          set -e
           echo "[$(date '+%H:%M:%S')] Cloning Heimdall..."
           git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
           cd heimdall
           echo "[$(date '+%H:%M:%S')] Disabling LLD and GOLD plugins..."
           sed -i '/add_subdirectory(.*lld.*)/ s/^/#/' CMakeLists.txt || true
           sed -i '/add_subdirectory(.*gold.*)/ s/^/#/' CMakeLists.txt || true
+          # Forcefully remove plugin directories to prevent build attempts
           rm -rf src/lld src/gold || true
 
       - name: Build Heimdall
@@ -85,18 +84,17 @@ jobs:
           sudo apt-get install -y \
             build-essential cmake ninja-build \
             python3 python3-pip \
-            llvm-dev clang lld \
-            gcc-plugin-dev libclang-dev \
+            llvm-dev clang lld libclang-dev \
             libcurl4-openssl-dev libssl-dev \
             pkg-config libelf-dev libedit-dev libbsd-dev zlib1g-dev libxml2-dev libjsoncpp-dev
-          echo "[$(date '+%H:%M:%S')] Configuring Heimdall build..."
+          echo "[$(date '+%H:%M:%S')] Configuring build..."
           mkdir -p build && cd build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
             -GNinja \
             -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations"
           echo "[$(date '+%H:%M:%S')] Building Heimdall..."
-          cmake --build . -- -j$(nproc)
+          ninja -j$(nproc)
           HEIMDALL_BIN_PATH=$(find . -type f -name "heimdall-sbom" | head -n 1)
           if [ -z "$HEIMDALL_BIN_PATH" ]; then
             echo "❌ heimdall-sbom not found!"
