@@ -100,9 +100,9 @@ jobs:
       - name: Install Heimdall SBOM Tool
         run: |
           echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Installing Heimdall..."
-          curl -sL https://github.com/heimdall-sbom/heimdall/releases/latest/download/heimdall-linux-amd64 -o /usr/local/bin/heimdall
-          chmod +x /usr/local/bin/heimdall
-          heimdall version
+           git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
+          cd heimdall
+          sudo ./scripts/setup-ubuntu.sh
 
       # -----------------------------
       # GENERATE SBOM USING HEIMDALL
