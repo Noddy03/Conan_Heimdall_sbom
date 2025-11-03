@@ -73,13 +73,12 @@ jobs:
         run: cp conan-src/conan.lock project-src/conan.lock
 
       - name: Clone Heimdall
-        run: |
-          git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
+        run: git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
 
-      - name: Verify LLD and Gold files exist
+      - name: Verify LLD and Gold folders
         run: |
-          ls -l heimdall/lld/ || echo "LLD folder missing"
-          ls -l heimdall/gold/ || echo "Gold folder missing"
+          if [ ! -d heimdall/lld ]; then echo "LLD folder missing"; exit 1; fi
+          if [ ! -d heimdall/gold ]; then echo "Gold folder missing"; exit 1; fi
 
       - name: Cache Heimdall build
         uses: actions/cache@v3
@@ -95,8 +94,9 @@ jobs:
             build-essential cmake ninja-build \
             python3 python3-pip \
             llvm-dev clang lld libclang-dev \
-            libcurl4-openssl-dev libssl-dev \
-            pkg-config libelf-dev libedit-dev libbsd-dev zlib1g-dev libxml2-dev libjsoncpp-dev
+            libcurl4-openssl-dev libssl-dev pkg-config \
+            libelf-dev libedit-dev libbsd-dev zlib1g-dev \
+            libxml2-dev libjsoncpp-dev gcc-plugin-dev
           
           mkdir -p heimdall/build && cd heimdall/build
           cmake .. \
