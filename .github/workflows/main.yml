@@ -110,12 +110,14 @@ jobs:
             libcurl4-openssl-dev libssl-dev \
             pkg-config libelf-dev libedit-dev
 
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Building Heimdall..."
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Configuring Heimdall (disable plugins)..."
           mkdir -p build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_LLD_PLUGIN=OFF -DENABLE_GOLD_PLUGIN=OFF ..
+
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Building Heimdall..."
           make -j$(nproc)
 
-          # Find Heimdall binary
+          # Find heimdall-sbom binary
           HEIMDALL_BIN_PATH=$(find . -type f -name "heimdall-sbom" | head -n 1)
           if [ -z "$HEIMDALL_BIN_PATH" ]; then
             echo "Error: heimdall-sbom binary not found!" >&2
@@ -124,6 +126,7 @@ jobs:
 
           chmod +x "$HEIMDALL_BIN_PATH"
           echo "HEIMDALL_BIN=$(realpath "$HEIMDALL_BIN_PATH")" >> $GITHUB_ENV
+
 
 
       # -----------------------------
