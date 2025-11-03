@@ -1,14 +1,12 @@
 #include "LldAdapter.h"
-#include "GoldenAdapter.h"
-#include <iostream>
+#include "GoldAdapter.h"
 
 int main() {
-    LldAdapter lld;
-    GoldenAdapter golden;
+    heimdall::gold::GoldAdapter gold;
+    gold.doSomething();
 
-    std::cout << "Testing adapters...\n";
-    lld.doSomething();       // Replace with actual method
-    golden.doSomething();    // Replace with actual method
+    heimdall::lld::LldAdapter lld;
+    lld.doSomething();
 
     return 0;
 }
