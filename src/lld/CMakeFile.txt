@@ -1,5 +1,2 @@
-# Create LldAdapter library
 add_library(LldAdapter LldAdapter.cpp)
-
-# Make headers accessible to other parts of the project
 target_include_directories(LldAdapter PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
