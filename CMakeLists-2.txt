@@ -1,32 +1,15 @@
-cmake_minimum_required(VERSION 3.15)
-project(heimdall VERSION 1.0.0 LANGUAGES CXX)
+# Existing plugin list
+set(PLUGINS lld gold)
 
-# -------------------------
-# Options
-# -------------------------
-option(ENABLE_TESTING "Enable building tests" ON)
+# Filter out missing plugin sources
+set(EXISTING_PLUGINS "")
+foreach(plugin ${PLUGINS})
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${plugin}/${plugin}Adapter.cpp")
+        list(APPEND EXISTING_PLUGINS ${plugin})
+    else()
+        message(WARNING "Skipping missing plugin: ${plugin}")
+    endif()
+endforeach()
 
-# -------------------------
-# C++ Standard
-# -------------------------
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# -------------------------
-# Conan
-# -------------------------
-include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup(TARGETS)
-
-# -------------------------
-# Find LLVM
-# -------------------------
-find_package(LLVM REQUIRED CONFIG)
-
-message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
-message(STATUS "LLVM include dirs: ${LLVM_INCLUDE_DIRS}")
-message(STATUS "LLVM libraries: ${LLVM_LIBRARIES}")
-
-# Include LLVM headers
-include_directories(${LLVM_INCLUDE_DIRS})
-add_definitio_
+# Use only existing plugins
+set(PLUGINS ${EXISTING_PLUGINS})
