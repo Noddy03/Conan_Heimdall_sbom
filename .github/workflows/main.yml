@@ -46,4 +46,110 @@ jobs:
       - name: Setup Python 3.10
         uses: actions/setup-python@v4
         with:
-          python-versio
+          python-version: '3.10'
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      # -----------------------------
+      # CHECKOUT REPOSITORIES
+      # -----------------------------
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.src_repository }}
+          ref: ${{ inputs.src_branch }}
+          path: project-src
+
+      - name: Checkout Conan repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.conan_repository }}
+          ref: ${{ inputs.conan_branch }}
+          path: conan-src
+
+      # -----------------------------
+      # INSTALL CONAN
+      # -----------------------------
+      - name: Install Conan and dependencies
+        run: |
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Installing Conan..."
+          python -m pip install --upgrade pip
+          pip install conan
+          conan profile detect --force
+
+      # -----------------------------
+      # GENERATE CONAN LOCKFILE
+      # -----------------------------
+      - name: Generate Conan lockfile
+        run: |
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Generating Conan lockfile..."
+          conan lock create conanfile.py --lockfile-out=conan.lock
+        working-directory: conan-src
+
+      - name: Copy Conan lockfile to source directory
+        run: cp conan-src/conan.lock project-src/conan.lock
+
+      # -----------------------------
+      # INSTALL HEIMDALL SBOM TOOL
+      # -----------------------------
+      - name: Install Heimdall SBOM Tool
+        run: |
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Cloning Heimdall..."
+          git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
+          cd heimdall
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Running setup..."
+          sudo ./scripts/setup-ubuntu.sh
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Building Heimdall..."
+          ./scripts/build.sh --standard 17 --compiler gcc --tests
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Installing binaries..."
+          sudo mv build/bin/heimdall-sbom /usr/local/bin/heimdall-sbom
+          sudo mv build/bin/heimdall-validate /usr/local/bin/heimdall-validate
+          sudo chmod +x /usr/local/bin/heimdall-sbom /usr/local/bin/heimdall-validate
+          heimdall-sbom --version
+          heimdall-validate --version
+
+      # -----------------------------
+      # GENERATE SBOM USING HEIMDALL
+      # -----------------------------
+      - name: Generate SBOM (SPDX and CycloneDX)
+        run: |
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Generating SBOM..."
+          heimdall-sbom \
+            --path project-src \
+            --format spdx \
+            --output project-src/heimdall-sbom.spdx.json
+          heimdall-sbom \
+            --path project-src \
+            --format cyclonedx \
+            --output project-src/heimdall-sbom.cyclonedx.json
+
+      # -----------------------------
+      # VALIDATE SBOM
+      # -----------------------------
+      - name: Validate SBOM
+        run: |
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Validating SBOM..."
+          heimdall-validate \
+            --input project-src/heimdall-sbom.cyclonedx.json \
+            --output project-src/heimdall-validation.json
+
+      # -----------------------------
+      # UPLOAD SBOM REPORTS
+      # -----------------------------
+      - name: Sanitize artifact name
+        id: sanitize
+        run: |
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Sanitizing artifact name..."
+          SAFE_NAME="${{ inputs.src_repository }}"
+          SAFE_NAME="${SAFE_NAME//\//_}"
+          echo "name=$SAFE_NAME" >> $GITHUB_OUTPUT
+
+      - name: Upload Heimdall SBOM reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: heimdall-sbom-${{ steps.sanitize.outputs.name }}
+          path: project-src/*.json
+          if-no-files-found: warn
