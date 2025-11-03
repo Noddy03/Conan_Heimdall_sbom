@@ -97,7 +97,7 @@ jobs:
             llvm-dev clang lld libclang-dev \
             libcurl4-openssl-dev libssl-dev \
             pkg-config libelf-dev libedit-dev libbsd-dev zlib1g-dev libxml2-dev libjsoncpp-dev \
-            gcc-plugin-dev gcc
+            gcc g++
 
           mkdir -p heimdall/build
           cd heimdall/build
