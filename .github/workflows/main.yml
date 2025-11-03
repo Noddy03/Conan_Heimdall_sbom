@@ -78,7 +78,12 @@ jobs:
 
       - name: Clone Heimdall repository
         shell: bash
-        run: git clone https://github.com/Heimdall-SBOM/heimdall.git
+        run: git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
+
+      - name: Initialize Heimdall submodules
+        shell: bash
+        run: git submodule update --init --recursive
+        working-directory: heimdall
 
       - name: Log Heimdall folder info
         run: echo "Skipping LLD/Gold folder check; these are generated during build."
@@ -91,18 +96,34 @@ jobs:
           restore-keys: |
             heimdall-${{ runner.os }}-
 
-      - name: Build Heimdall
+      - name: Build Heimdall with LLD & Gold
         shell: bash
         run: |
           set -e
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build python3 python3-pip
+          sudo apt-get install -y \
+            build-essential cmake ninja-build \
+            python3 python3-pip \
+            llvm-dev clang lld libclang-dev \
+            libcurl4-openssl-dev libssl-dev pkg-config libelf-dev libedit-dev libbsd-dev zlib1g-dev libxml2-dev libjsoncpp-dev gcc-plugin-dev
           mkdir -p heimdall/build
           cd heimdall/build
-          cmake .. -DCMAKE_BUILD_TYPE=Release -GNinja
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_LLVM_PLUGIN=ON \
+            -DBUILD_LLD_PLUGIN=ON \
+            -DBUILD_GOLD_PLUGIN=ON \
+            -DENABLE_GCC_PLUGIN=OFF \
+            -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations" \
+            -GNinja
           ninja -j$(nproc)
-          HEIMDALL_BIN=$(realpath heimdall)
-          echo "HEIMDALL_BIN=$HEIMDALL_BIN" >> $GITHUB_ENV
+          HEIMDALL_BIN_PATH=$(find . -type f -name "heimdall-sbom" | head -n 1)
+          if [ -z "$HEIMDALL_BIN_PATH" ]; then
+            echo "❌ heimdall-sbom not found!"
+            exit 1
+          fi
+          chmod +x "$HEIMDALL_BIN_PATH"
+          echo "HEIMDALL_BIN=$(realpath "$HEIMDALL_BIN_PATH")" >> $GITHUB_ENV
 
       - name: Generate SBOM (SPDX + CycloneDX)
         shell: bash
@@ -111,6 +132,15 @@ jobs:
           cd project-src
           "$HEIMDALL_BIN" --path . --format spdx-2.3 --output heimdall-sbom.spdx.json
           "$HEIMDALL_BIN" --path . --format cyclonedx-1.5 --output heimdall-sbom.cyclonedx.json
+
+      - name: Validate SBOM
+        shell: bash
+        run: |
+          set -e
+          cd heimdall/build
+          ./heimdall-validate \
+            --input ../../project-src/heimdall-sbom.cyclonedx.json \
+            --output ../../project-src/heimdall-validation.json
 
       - name: Sanitize artifact name
         id: sanitize
@@ -127,4 +157,5 @@ jobs:
           path: |
             project-src/heimdall-sbom.spdx.json
             project-src/heimdall-sbom.cyclonedx.json
+            project-src/heimdall-validation.json
           if-no-files-found: warn
