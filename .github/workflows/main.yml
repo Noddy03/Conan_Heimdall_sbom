@@ -74,18 +74,52 @@ jobs:
         shell: bash
         run: cp conan-src/conan.lock project-src/conan.lock
 
-      - name: Download Heimdall binary
+      # ===== Build Heimdall from source =====
+      - name: Clone Heimdall repository
+        shell: bash
+        run: git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
+
+      - name: Cache Heimdall build
+        uses: actions/cache@v3
+        with:
+          path: heimdall/build
+          key: heimdall-${{ runner.os }}-${{ hashFiles('heimdall/src/CMakeLists.txt', 'heimdall/**/*.cpp', 'heimdall/**/*.h') }}
+          restore-keys: |
+            heimdall-${{ runner.os }}-
+
+      - name: Build Heimdall (from source)
         shell: bash
         run: |
-          HEIMDALL_VERSION="v0.2.0"  # adjust to latest stable release after verification
-          curl -L -o heimdall-linux-amd64 "https://github.com/Heimdall-SBOM/heimdall/releases/download/${HEIMDALL_VERSION}/heimdall-linux-amd64"
-          chmod +x heimdall-linux-amd64
-          echo "HEIMDALL_BIN=$(pwd)/heimdall-linux-amd64" >> $GITHUB_ENV
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            build-essential cmake ninja-build \
+            python3 python3-pip \
+            libcurl4-openssl-dev libssl-dev pkg-config \
+            libelf-dev libedit-dev libbsd-dev zlib1g-dev \
+            libxml2-dev libjsoncpp-dev gcc-13 g++-13 gcc-13-plugin-dev
+          # Clean build
+          rm -rf heimdall/build
+          mkdir -p heimdall/build
+          cd heimdall/build
+          cmake ../src \
+            -DCMAKE_BUILD_TYPE=Release \
+            -GNinja \
+            -DBUILD_GOLD_PLUGIN=ON \
+            -DBUILD_GCC_PLUGIN=ON \
+            -DBUILD_LLD_PLUGIN=OFF \
+            -DHEIMDALL_ENABLE_TESTS=ON \
+            -DCMAKE_C_COMPILER=gcc-13 \
+            -DCMAKE_CXX_COMPILER=g++-13 \
+            -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations -Wno-unused-variable"
+          ninja -j$(nproc)
+          # Export Heimdall binary path
+          echo "HEIMDALL_BIN=$(pwd)/heimdall" >> $GITHUB_ENV
 
       - name: Validate SBOM
         shell: bash
         run: |
           if [ -f "$HEIMDALL_BIN" ]; then
+            file "$HEIMDALL_BIN"
             "$HEIMDALL_BIN" --validate \
               --input project-src/heimdall-sbom.cyclonedx.json \
               --output project-src/heimdall-validation.json
@@ -111,4 +145,3 @@ jobs:
             project-src/heimdall-sbom.cyclonedx.json
             project-src/heimdall-validation.json
           if-no-files-found: warn
-
