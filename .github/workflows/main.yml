@@ -58,8 +58,7 @@ jobs:
           conan profile detect --force
 
       - name: Generate Conan lockfile
-        run: |
-          conan lock create conanfile.py --lockfile-out=conan.lock
+        run: conan lock create conanfile.py --lockfile-out=conan.lock
         working-directory: conan-src
 
       - name: Copy lockfile
@@ -67,19 +66,21 @@ jobs:
 
       - name: Clone and patch Heimdall (disable plugins)
         run: |
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Cloning Heimdall..."
+          echo "[$(date '+%H:%M:%S')] Cloning Heimdall..."
           git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
           cd heimdall
 
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Disabling LLD and GOLD plugins..."
-          # Comment out plugin directories in the main CMakeLists.txt
+          echo "[$(date '+%H:%M:%S')] Disabling LLD and GOLD plugins..."
           sed -i '/add_subdirectory(.*lld.*)/ s/^/#/' CMakeLists.txt || true
           sed -i '/add_subdirectory(.*gold.*)/ s/^/#/' CMakeLists.txt || true
+
+          # Forcefully remove plugin directories to prevent build attempts
+          rm -rf src/lld src/gold || true
 
       - name: Build Heimdall
         run: |
           cd heimdall
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Installing dependencies..."
+          echo "[$(date '+%H:%M:%S')] Installing dependencies..."
           sudo apt-get update
           sudo apt-get install -y \
             build-essential cmake ninja-build \
@@ -88,13 +89,14 @@ jobs:
             libcurl4-openssl-dev libssl-dev \
             pkg-config libelf-dev libedit-dev
 
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Configuring build..."
+          echo "[$(date '+%H:%M:%S')] Configuring build..."
           mkdir -p build && cd build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
-            -GNinja
+            -GNinja \
+            -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations"
 
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Building Heimdall..."
+          echo "[$(date '+%H:%M:%S')] Building Heimdall..."
           ninja -j$(nproc)
 
           HEIMDALL_BIN_PATH=$(find . -type f -name "heimdall-sbom" | head -n 1)
