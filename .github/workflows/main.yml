@@ -36,14 +36,14 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Checkout source
+      - name: Checkout source repository
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.src_repository }}
           ref: ${{ inputs.src_branch }}
           path: project-src
 
-      - name: Checkout Conan repo
+      - name: Checkout Conan repository
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.conan_repository }}
@@ -72,11 +72,11 @@ jobs:
         run: conan lock create conanfile.py --lockfile-out=conan.lock
         working-directory: conan-src
 
-      - name: Copy lockfile to source
+      - name: Copy lockfile to source repository
         shell: bash
         run: cp conan-src/conan.lock project-src/conan.lock
 
-      - name: Clone Heimdall
+      - name: Clone Heimdall repository
         shell: bash
         run: git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
 
@@ -87,7 +87,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: heimdall/build
-          key: heimdall-${{ runner.os }}-${{ hashFiles('heimdall/CMakeLists.txt') }}
+          key: heimdall-${{ runner.os }}-${{ hashFiles('heimdall/CMakeLists.txt', 'heimdall/**/*.cpp', 'heimdall/**/*.h') }}
+          restore-keys: |
+            heimdall-${{ runner.os }}-
 
       - name: Build Heimdall with LLD & Gold
         shell: bash
@@ -101,7 +103,6 @@ jobs:
             libcurl4-openssl-dev libssl-dev \
             pkg-config libelf-dev libedit-dev libbsd-dev zlib1g-dev libxml2-dev libjsoncpp-dev \
             gcc g++
-
           mkdir -p heimdall/build
           cd heimdall/build
           cmake .. \
@@ -113,7 +114,6 @@ jobs:
             -DENABLE_TESTS=ON \
             -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations"
           ninja -j$(nproc)
-
           HEIMDALL_BIN_PATH=$(find . -type f -name "heimdall-sbom" | head -n 1)
           if [ -z "$HEIMDALL_BIN_PATH" ]; then
             echo "❌ heimdall-sbom not found!"
@@ -125,17 +125,19 @@ jobs:
       - name: Generate SBOM (SPDX + CycloneDX)
         shell: bash
         run: |
+          set -e
           cd project-src
-          "$HEIMDALL_BIN" --path . --format spdx-2.3 --output heimdall-sbom.spdx.json || echo "SPDX generation failed"
-          "$HEIMDALL_BIN" --path . --format cyclonedx-1.5 --output heimdall-sbom.cyclonedx.json || echo "CycloneDX generation failed"
+          "$HEIMDALL_BIN" --path . --format spdx-2.3 --output heimdall-sbom.spdx.json
+          "$HEIMDALL_BIN" --path . --format cyclonedx-1.5 --output heimdall-sbom.cyclonedx.json
 
       - name: Validate SBOM
         shell: bash
         run: |
+          set -e
           cd heimdall/build
           ./heimdall-validate \
             --input ../../project-src/heimdall-sbom.cyclonedx.json \
-            --output ../../project-src/heimdall-validation.json || echo "Validation failed"
+            --output ../../project-src/heimdall-validation.json
 
       - name: Sanitize artifact name
         id: sanitize
