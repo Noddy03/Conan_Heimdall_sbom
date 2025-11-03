@@ -1,0 +1,2 @@
+add_library(GoldAdapter GoldAdapter.cpp)
+target_include_directories(GoldAdapter PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
