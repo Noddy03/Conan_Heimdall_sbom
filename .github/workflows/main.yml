@@ -99,22 +99,17 @@ jobs:
         run: |
           echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Cloning Heimdall..."
           git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
-            cd heimdall
-          # Install minimal build dependencies
+          cd heimdall
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Installing build dependencies..."
           sudo apt-get update
-          sudo apt-get install -y cmake g++ make
-          # Build Heimdall
+          sudo apt-get install -y cmake g++ make libedit-dev curl pkg-config
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Building Heimdall..."
           mkdir -p build
           cd build
           cmake ..
           make
-          # The binary is now available
-          chmod +x heimdall-sbom
-
-    
-
-
-
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Heimdall build complete"
+          echo "HEIMDALL_BIN=$(pwd)/heimdall-sbom" >> $GITHUB_ENV
 
       # -----------------------------
       # GENERATE SBOM USING HEIMDALL
@@ -122,14 +117,8 @@ jobs:
       - name: Generate SBOM (SPDX and CycloneDX)
         run: |
           echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Generating SBOM..."
-          heimdall-sbom \
-            --path project-src \
-            --format spdx \
-            --output project-src/heimdall-sbom.spdx.json
-          heimdall-sbom \
-            --path project-src \
-            --format cyclonedx \
-            --output project-src/heimdall-sbom.cyclonedx.json
+          $HEIMDALL_BIN --path project-src --format spdx --output project-src/heimdall-sbom.spdx.json
+          $HEIMDALL_BIN --path project-src --format cyclonedx --output project-src/heimdall-sbom.cyclonedx.json
 
       # -----------------------------
       # VALIDATE SBOM
@@ -137,9 +126,8 @@ jobs:
       - name: Validate SBOM
         run: |
           echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Validating SBOM..."
-          heimdall-validate \
-            --input project-src/heimdall-sbom.cyclonedx.json \
-            --output project-src/heimdall-validation.json
+          cd heimdall/build
+          ./heimdall-validate --input ../../project-src/heimdall-sbom.cyclonedx.json --output ../../project-src/heimdall-validation.json
 
       # -----------------------------
       # UPLOAD SBOM REPORTS
