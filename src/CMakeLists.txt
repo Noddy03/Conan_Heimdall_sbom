@@ -14,29 +14,21 @@ else()
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# Choose linker preference (use lld if available)
+# Use lld if GCC/Clang
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    message(STATUS "Using GNU/Clang compiler: ${CMAKE_CXX_COMPILER}")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld")
-    message(STATUS "Linker flags now: ${CMAKE_EXE_LINKER_FLAGS}")
 endif()
 
-# Include directories (adjust if your include path differs)
+# Include directories
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
 # Find dependencies
 find_package(OpenSSL REQUIRED)
 
-# Recursively gather sources from src/lld and src/gold
+# Gather source files
 file(GLOB_RECURSE LLD_SOURCES ${CMAKE_SOURCE_DIR}/src/lld/*.cpp)
 file(GLOB_RECURSE GOLD_SOURCES ${CMAKE_SOURCE_DIR}/src/gold/*.cpp)
-set(SOURCES
-    ${LLD_SOURCES}
-    ${GOLD_SOURCES}
-)
-
-# Check that we found sources
-message(STATUS "Found ${#SOURCES} source files")
+set(SOURCES ${LLD_SOURCES} ${GOLD_SOURCES})
 
 # Create executable target
 add_executable(heimdall ${SOURCES})
@@ -51,11 +43,7 @@ set_target_properties(heimdall PROPERTIES
 target_link_libraries(heimdall PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 
 # Compile options for target
-target_compile_options(heimdall PRIVATE
-    -Wall -Wextra -Wpedantic
-)
+target_compile_options(heimdall PRIVATE -Wall -Wextra -Wpedantic)
 
-# Optional installation rule
-install(TARGETS heimdall
-    RUNTIME DESTINATION bin
-)
+# Optional installation
+install(TARGETS heimdall RUNTIME DESTINATION bin)
