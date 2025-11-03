@@ -1,152 +1,79 @@
-name: Conan + Heimdall Full SBOM Scan
+name: Generate SBOM with Heimdall
 
 on:
-  workflow_dispatch:
-    inputs:
-      src_repository:
-        description: 'Source Repository (e.g., user/repo)'
-        required: true
-      src_branch:
-        description: 'Branch of source repository'
-        required: false
-        default: 'main'
-      conan_repository:
-        description: 'Repository containing conanfile.py'
-        required: true
-      conan_branch:
-        description: 'Branch for Conan repository'
-        required: false
-        default: 'main'
-      src_type:
-        description: 'Project Type (java, python, dotnet, cpp, c++)'
-        required: false
-        default: 'cpp'
+  push:
+    branches: [ main ]
+  pull_request:
 
 jobs:
-  build:
+  sbom:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
 
     steps:
-      # -----------------------------
-      # TIMESTAMP FUNCTION
-      # -----------------------------
-      - name: Define timestamp function
-        id: timestamp
-        run: |
-          echo "TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S %Z')" >> $GITHUB_ENV
-          echo "Timestamp initialized at $TIMESTAMP"
-
-      # -----------------------------
-      # SETUP ENVIRONMENT
-      # -----------------------------
-      - name: Setup Python 3.10
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20'
-
-      # -----------------------------
-      # CHECKOUT REPOSITORIES
-      # -----------------------------
-      - name: Checkout source repository
+      - name: Checkout source code
         uses: actions/checkout@v4
-        with:
-          repository: ${{ inputs.src_repository }}
-          ref: ${{ inputs.src_branch }}
-          path: project-src
 
-      - name: Checkout Conan repository
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ inputs.conan_repository }}
-          ref: ${{ inputs.conan_branch }}
-          path: conan-src
-
-      # -----------------------------
-      # INSTALL DEPENDENCIES
-      # -----------------------------
-      - name: Install Conan and dependencies
+      - name: Set up environment
         run: |
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Installing Conan..."
-          python -m pip install --upgrade pip
-          pip install conan
-          conan profile detect --force
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Setting up environment..."
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build git python3 python3-pip \
+            libssl-dev libelf-dev pkg-config libboost-filesystem-dev \
+            libboost-system-dev curl jq
 
-      # -----------------------------
-      # GENERATE CONAN LOCKFILE
-      # -----------------------------
-      - name: Generate Conan lockfile
+      - name: Clone and build Heimdall
         run: |
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Generating Conan lockfile..."
-          conan lock create conanfile.py --lockfile-out=conan.lock
-        working-directory: conan-src
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Cloning Heimdall..."
+          git clone https://github.com/Heimdall-SBOM/heimdall.git
+          cd heimdall
 
-      - name: Copy Conan lockfile to source directory
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Running setup script..."
+          sudo ./scripts/setup-ubuntu.sh --auto-detect || true
+
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Building Heimdall..."
+          ./scripts/build.sh --standard 17 --compiler gcc --tests
+
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Installing Heimdall..."
+          sudo mv build/bin/heimdall-sbom /usr/local/bin/heimdall-sbom
+          sudo mv build/bin/heimdall-validate /usr/local/bin/heimdall-validate
+          sudo chmod +x /usr/local/bin/heimdall-sbom /usr/local/bin/heimdall-validate
+          echo "/usr/local/bin" >> $GITHUB_PATH
+
+          heimdall-sbom --version || echo "Heimdall SBOM tool ready."
+          heimdall-validate --version || echo "Heimdall Validate tool ready."
+
+      - name: Generate SBOMs
         run: |
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Copying Conan lockfile..."
-          cp conan-src/conan.lock project-src/conan.lock
-
-      # -----------------------------
-      # INSTALL HEIMDALL
-      # -----------------------------
-      - name: Install Heimdall SBOM Tool
-        run: |
-            VERSION=$(curl -s https://api.github.com/repos/heimdall-sbom/heimdall/releases/latest | jq -r '.tag_name')
-            curl -L "https://github.com/heimdall-sbom/heimdall/releases/download/${VERSION}/heimdall-${VERSION}-linux-amd64.tar.gz" \
-            | tar -xz
-              sudo mv heimdall /usr/local/bin/heimdall
-              sudo chmod +x /usr/local/bin/heimdall
-              echo "/usr/local/bin" >> $GITHUB_PATH
-              heimdall version
-
-
-      # -----------------------------
-      # GENERATE SBOM USING HEIMDALL
-      # -----------------------------
-      - name: Generate SBOM (SPDX and CycloneDX)
-        run: |
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Generating SBOM..."
-          heimdall generate \
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Generating SBOMs..."
+          mkdir -p project-src
+          heimdall-sbom \
             --path project-src \
             --format spdx \
             --output project-src/heimdall-sbom.spdx.json
-          heimdall generate \
+
+          heimdall-sbom \
             --path project-src \
             --format cyclonedx \
             --output project-src/heimdall-sbom.cyclonedx.json
 
-      # -----------------------------
-      # VALIDATE SBOM
-      # -----------------------------
-      - name: Validate SBOM
+      - name: Validate SBOMs
         run: |
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Validating SBOM..."
-          heimdall validate \
+          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Validating SBOMs..."
+          heimdall-validate \
+            --input project-src/heimdall-sbom.spdx.json \
+            --output project-src/validation-spdx.json
+
+          heimdall-validate \
             --input project-src/heimdall-sbom.cyclonedx.json \
-            --output project-src/heimdall-validation.json
+            --output project-src/validation-cyclonedx.json
 
-      # -----------------------------
-      # UPLOAD SBOM REPORTS
-      # -----------------------------
-      - name: Sanitize artifact name
-        id: sanitize
-        run: |
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Sanitizing artifact name..."
-          SAFE_NAME="${{ inputs.src_repository }}"
-          SAFE_NAME="${SAFE_NAME//\//_}"
-          echo "name=$SAFE_NAME" >> $GITHUB_OUTPUT
-
-      - name: Upload Heimdall SBOM reports
+      - name: Upload SBOM artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: heimdall-sbom-${{ steps.sanitize.outputs.name }}
-          path: project-src/*.json
-          if-no-files-found: warn
+          name: heimdall-sboms
+          path: |
+            project-src/heimdall-sbom.spdx.json
+            project-src/heimdall-sbom.cyclonedx.json
+            project-src/validation-spdx.json
+            project-src/validation-cyclonedx.json
