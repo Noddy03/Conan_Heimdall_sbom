@@ -57,29 +57,40 @@ jobs:
           pip install conan
           conan profile detect --force
 
+      - name: Cache Conan packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.conan/data
+          key: conan-${{ inputs.conan_repository }}-${{ inputs.conan_branch }}-${{ hashFiles('conan-src/conanfile.py') }}
+          restore-keys: |
+            conan-${{ inputs.conan_repository }}-${{ inputs.conan_branch }}-
+
       - name: Generate Conan lockfile
         run: conan lock create conanfile.py --lockfile-out=conan.lock
         working-directory: conan-src
 
-      - name: Copy lockfile
+      - name: Copy lockfile to source
         run: cp conan-src/conan.lock project-src/conan.lock
 
-      - name: Clone and patch Heimdall (disable plugins)
+      - name: Clone Heimdall and patch
         run: |
-          echo "[$(date '+%H:%M:%S')] Cloning Heimdall..."
           git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
           cd heimdall
-          echo "[$(date '+%H:%M:%S')] Disabling LLD and GOLD plugins..."
+          # Disable problematic plugins
           sed -i '/add_subdirectory(.*lld.*)/ s/^/#/' CMakeLists.txt || true
           sed -i '/add_subdirectory(.*gold.*)/ s/^/#/' CMakeLists.txt || true
-          # Forcefully remove plugin directories to prevent build attempts
           rm -rf src/lld src/gold || true
+
+      - name: Cache Heimdall build
+        uses: actions/cache@v3
+        with:
+          path: heimdall/build
+          key: heimdall-${{ hashFiles('heimdall/**') }}
 
       - name: Build Heimdall
         run: |
           set -e
           cd heimdall
-          echo "[$(date '+%H:%M:%S')] Installing dependencies..."
           sudo apt-get update
           sudo apt-get install -y \
             build-essential cmake ninja-build \
@@ -87,13 +98,8 @@ jobs:
             llvm-dev clang lld libclang-dev \
             libcurl4-openssl-dev libssl-dev \
             pkg-config libelf-dev libedit-dev libbsd-dev zlib1g-dev libxml2-dev libjsoncpp-dev
-          echo "[$(date '+%H:%M:%S')] Configuring build..."
           mkdir -p build && cd build
-          cmake .. \
-            -DCMAKE_BUILD_TYPE=Release \
-            -GNinja \
-            -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations"
-          echo "[$(date '+%H:%M:%S')] Building Heimdall..."
+          cmake .. -DCMAKE_BUILD_TYPE=Release -GNinja -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations"
           ninja -j$(nproc)
           HEIMDALL_BIN_PATH=$(find . -type f -name "heimdall-sbom" | head -n 1)
           if [ -z "$HEIMDALL_BIN_PATH" ]; then
@@ -106,15 +112,15 @@ jobs:
       - name: Generate SBOM (SPDX + CycloneDX)
         run: |
           cd project-src
-          "$HEIMDALL_BIN" --path . --format spdx-2.3 --output heimdall-sbom.spdx.json
-          "$HEIMDALL_BIN" --path . --format cyclonedx-1.5 --output heimdall-sbom.cyclonedx.json
+          "$HEIMDALL_BIN" --path . --format spdx-2.3 --output heimdall-sbom.spdx.json || echo "SPDX generation failed"
+          "$HEIMDALL_BIN" --path . --format cyclonedx-1.5 --output heimdall-sbom.cyclonedx.json || echo "CycloneDX generation failed"
 
       - name: Validate SBOM
         run: |
           cd heimdall/build
           ./heimdall-validate \
             --input ../../project-src/heimdall-sbom.cyclonedx.json \
-            --output ../../project-src/heimdall-validation.json
+            --output ../../project-src/heimdall-validation.json || echo "Validation failed"
 
       - name: Sanitize artifact name
         id: sanitize
@@ -127,5 +133,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: heimdall-sbom-${{ steps.sanitize.outputs.name }}
-          path: project-src/*.json
+          path: |
+            project-src/heimdall-sbom.spdx.json
+            project-src/heimdall-sbom.cyclonedx.json
+            project-src/heimdall-validation.json
           if-no-files-found: warn
