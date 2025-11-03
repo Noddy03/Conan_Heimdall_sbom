@@ -1,54 +1,47 @@
-# Minimum required CMake version
-cmake_minimum_required(VERSION 3.31)
+# Top of CMakeLists.txt
+cmake_minimum_required(VERSION 3.28)
 
-# Project definition
-project(heimdall VERSION 1.0 LANGUAGES C CXX)
+# Define the project
+project(HeimdallSBOM
+    VERSION 1.0
+    LANGUAGES C CXX
+)
 
-# Use C++17 standard
+# Example compiler settings
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Set default build type if not provided
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
-endif()
-
-# Find OpenSSL
+# Find dependencies
 find_package(OpenSSL REQUIRED)
+find_package(PkgConfig REQUIRED)
 
-# Include directories (if you have headers)
-include_directories(${PROJECT_SOURCE_DIR}/include)
-
-# Gather source files
-file(GLOB_RECURSE SOURCES
-    "${PROJECT_SOURCE_DIR}/src/*.cpp"
-    "${PROJECT_SOURCE_DIR}/src/*.c"
+# Include directories
+include_directories(
+    ${CMAKE_SOURCE_DIR}/include
+    ${OPENSSL_INCLUDE_DIR}
 )
 
-# Add executable
-add_executable(${PROJECT_NAME} ${SOURCES})
+# Add source files
+set(SOURCES
+    src/main.cpp
+    src/other_module.cpp
+)
+
+# Add executable target
+add_executable(heimdall ${SOURCES})
+
+# Corrected set_target_properties usage
+set_target_properties(heimdall PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON
+)
 
 # Link libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(heimdall PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 
-# Optional: set runtime output directory
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+# Optional: install rules
+install(TARGETS heimdall
+    RUNTIME DESTINATION bin
 )
-
-# Optional: enable warnings
-if(MSVC)
-    target_compile_options(${PROJECT_NAME} PRIVATE /W4 /permissive-)
-else()
-    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wnon-virtual-dtor -Wconversion)
-endif()
-
-# Optional: enable Ninja support if available
-if(CMAKE_GENERATOR STREQUAL "Ninja")
-    message(STATUS "Using Ninja build system")
-endif()
-
-# Optional: add install rules
-install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
-install(DIRECTORY include/ DESTINATION include)
