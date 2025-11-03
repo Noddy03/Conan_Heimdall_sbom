@@ -54,7 +54,6 @@ jobs:
         shell: bash
         run: |
           set -e
-          sudo apt-get update
           python3 -m pip install --upgrade pip setuptools wheel
           pip install conan
           conan profile detect --force
@@ -80,14 +79,6 @@ jobs:
         shell: bash
         run: git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
 
-      - name: Initialize Heimdall submodules
-        shell: bash
-        run: git submodule update --init --recursive
-        working-directory: heimdall
-
-      - name: Log Heimdall folder info
-        run: echo "Skipping LLD/Gold folder check; these are generated during build."
-
       - name: Cache Heimdall build
         uses: actions/cache@v3
         with:
@@ -96,7 +87,7 @@ jobs:
           restore-keys: |
             heimdall-${{ runner.os }}-
 
-      - name: Build Heimdall with LLD & Gold
+      - name: Build Heimdall with LLD, Gold & GCC plugin
         shell: bash
         run: |
           set -e
@@ -105,18 +96,21 @@ jobs:
             build-essential cmake ninja-build \
             python3 python3-pip \
             llvm-dev clang lld libclang-dev \
-            libcurl4-openssl-dev libssl-dev pkg-config libelf-dev libedit-dev libbsd-dev zlib1g-dev libxml2-dev libjsoncpp-dev gcc-plugin-dev
+            libcurl4-openssl-dev libssl-dev pkg-config libelf-dev libedit-dev libbsd-dev zlib1g-dev libxml2-dev libjsoncpp-dev \
+            gcc g++ gcc-13-plugin-dev  # fixed package for GCC plugin
+          
           mkdir -p heimdall/build
           cd heimdall/build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
+            -GNinja \
             -DBUILD_LLVM_PLUGIN=ON \
             -DBUILD_LLD_PLUGIN=ON \
             -DBUILD_GOLD_PLUGIN=ON \
-            -DENABLE_GCC_PLUGIN=OFF \
-            -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations" \
-            -GNinja
+            -DENABLE_GCC_PLUGIN=ON \
+            -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations"
           ninja -j$(nproc)
+          
           HEIMDALL_BIN_PATH=$(find . -type f -name "heimdall-sbom" | head -n 1)
           if [ -z "$HEIMDALL_BIN_PATH" ]; then
             echo "❌ heimdall-sbom not found!"
