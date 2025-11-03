@@ -106,7 +106,7 @@ jobs:
           sudo apt-get install -y \
             build-essential cmake ninja-build \
             python3 python3-pip \
-            lld-18 lld-18-dev llvm-18-dev \
+            llvm-dev lld clang \
             libcurl4-openssl-dev libssl-dev \
             pkg-config libelf-dev libedit-dev
 
@@ -124,6 +124,7 @@ jobs:
 
           chmod +x "$HEIMDALL_BIN_PATH"
           echo "HEIMDALL_BIN=$(realpath "$HEIMDALL_BIN_PATH")" >> $GITHUB_ENV
+
 
       # -----------------------------
       # GENERATE SBOM USING HEIMDALL
