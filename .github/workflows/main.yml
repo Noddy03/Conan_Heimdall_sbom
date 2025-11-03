@@ -31,18 +31,10 @@ jobs:
       actions: read
 
     steps:
-      # -----------------------------
-      # TIMESTAMP FUNCTION
-      # -----------------------------
-      - name: Define timestamp function
-        id: timestamp
-        run: |
-          echo "TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S %Z')" >> $GITHUB_ENV
-          echo "Timestamp initialized at $TIMESTAMP"
+      - name: Timestamp
+        run: echo "TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S %Z')" >> $GITHUB_ENV
 
-      # -----------------------------
-      # SETUP ENVIRONMENT
-      # -----------------------------
+      # --- Setup environment ---
       - name: Setup Python 3.10
         uses: actions/setup-python@v4
         with:
@@ -53,9 +45,7 @@ jobs:
         with:
           node-version: '20'
 
-      # -----------------------------
-      # CHECKOUT REPOSITORIES
-      # -----------------------------
+      # --- Checkout repositories ---
       - name: Checkout source repository
         uses: actions/checkout@v4
         with:
@@ -70,38 +60,29 @@ jobs:
           ref: ${{ inputs.conan_branch }}
           path: conan-src
 
-      # -----------------------------
-      # INSTALL CONAN
-      # -----------------------------
-      - name: Install Conan and dependencies
+      # --- Install Conan ---
+      - name: Install Conan
         run: |
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Installing Conan..."
+          sudo apt-get update
           python -m pip install --upgrade pip
           pip install conan
           conan profile detect --force
 
-      # -----------------------------
-      # GENERATE CONAN LOCKFILE
-      # -----------------------------
+      # --- Generate Conan lockfile ---
       - name: Generate Conan lockfile
         run: |
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Generating Conan lockfile..."
           conan lock create conanfile.py --lockfile-out=conan.lock
         working-directory: conan-src
 
-      - name: Copy Conan lockfile to source directory
+      - name: Copy lockfile to source directory
         run: cp conan-src/conan.lock project-src/conan.lock
 
-      # -----------------------------
-      # BUILD HEIMDALL (SKIP PLUGINS)
-      # -----------------------------
-      - name: Build Heimdall SBOM Tool
+      # --- Build Heimdall ---
+      - name: Build Heimdall SBOM Tool (no plugins)
         run: |
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Cloning Heimdall..."
           git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
           cd heimdall
 
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Installing dependencies..."
           sudo apt-get update
           sudo apt-get install -y \
             build-essential cmake ninja-build \
@@ -110,45 +91,38 @@ jobs:
             libcurl4-openssl-dev libssl-dev \
             pkg-config libelf-dev libedit-dev
 
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Configuring Heimdall (disable plugins)..."
           mkdir -p build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_LLD_PLUGIN=OFF -DENABLE_GOLD_PLUGIN=OFF ..
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_LLD_PLUGIN=OFF \
+            -DENABLE_GOLD_PLUGIN=OFF
 
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Building Heimdall..."
           make -j$(nproc)
 
           HEIMDALL_BIN_PATH=$(find . -type f -name "heimdall-sbom" | head -n 1)
           if [ -z "$HEIMDALL_BIN_PATH" ]; then
-            echo "Error: heimdall-sbom binary not found!" >&2
+            echo "❌ heimdall-sbom not found!"
             exit 1
           fi
           chmod +x "$HEIMDALL_BIN_PATH"
           echo "HEIMDALL_BIN=$(realpath "$HEIMDALL_BIN_PATH")" >> $GITHUB_ENV
 
-      # -----------------------------
-      # GENERATE SBOM USING HEIMDALL
-      # -----------------------------
-      - name: Generate SBOM (SPDX and CycloneDX)
+      # --- Generate SBOM ---
+      - name: Generate SBOM (SPDX + CycloneDX)
         run: |
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Generating SBOM..."
           cd project-src
           "$HEIMDALL_BIN" --path . --format spdx-2.3 --output heimdall-sbom.spdx.json
           "$HEIMDALL_BIN" --path . --format cyclonedx-1.5 --output heimdall-sbom.cyclonedx.json
 
-      # -----------------------------
-      # VALIDATE SBOM
-      # -----------------------------
+      # --- Validate SBOM ---
       - name: Validate SBOM
         run: |
-          echo "[$(date '+%Y-%m-%d %H:%M:%S %Z')] Validating SBOM..."
           cd heimdall/build
           ./heimdall-validate \
             --input ../../project-src/heimdall-sbom.cyclonedx.json \
             --output ../../project-src/heimdall-validation.json
 
-      # -----------------------------
-      # UPLOAD SBOM REPORTS
-      # -----------------------------
+      # --- Upload artifacts ---
       - name: Sanitize artifact name
         id: sanitize
         run: |
@@ -156,7 +130,7 @@ jobs:
           SAFE_NAME="${SAFE_NAME//\//_}"
           echo "name=$SAFE_NAME" >> $GITHUB_OUTPUT
 
-      - name: Upload Heimdall SBOM reports
+      - name: Upload SBOM Reports
         uses: actions/upload-artifact@v4
         with:
           name: heimdall-sbom-${{ steps.sanitize.outputs.name }}
