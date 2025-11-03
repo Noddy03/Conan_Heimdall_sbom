@@ -101,7 +101,7 @@ jobs:
             git clone --recurse-submodules https://github.com/Heimdall-SBOM/heimdall.git
           cd heimdall
           sudo sed -i '/gcc-plugin-dev/d' ./scripts/setup-ubuntu.sh
-          sudo ./scripts/setup-ubuntu.sh
+          sudo bash ./scripts/setup-ubuntu.sh
 
 
       # -----------------------------
